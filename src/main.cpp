@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <ArduinoJson.h>
 #include <ESP8266AutoIOT.h>
 
 #include "telnet.h"
@@ -14,10 +13,8 @@ void setup() {
 
   // app.resetAllSettings();
   app.begin();
-  telnet.registerCallback("help", "I am a good desk! I am happy to meet you!");
-  telnet.registerCallback("test", "It was a good test. You did well.");
   telnet.begin();
-  jarvis.begin(telnet.stream);
+  jarvis.begin(&telnet);
 }
 
 void loop() {

@@ -3,9 +3,9 @@
 
 #include <Arduino.h>
 #include <SoftwareSerial.h>
-#include <TelnetStream.h>
 
 #include "pinout.h"
+#include "telnet.h"
 
 #define EOM 0x7E
  // controller address
@@ -55,8 +55,10 @@ enum state_t {
 
 class Jarvis {
   public:
-    void begin(TelnetStreamClass *streamPtr);
+    void begin(Telnet *telnetPtr);
     void loop();
+    void moveDown();
+    void moveUp();
   private:
     unsigned char cmd;
     unsigned char addr;
@@ -65,12 +67,13 @@ class Jarvis {
     unsigned char checksum;
     
     state_t state = SYNC;
+    Telnet *telnet;
 
-    void reset(unsigned char data);
+    void resetPacket(unsigned char data);
     bool registerByte(unsigned char data);
-    void printCommand();
-    void processCommand();
-    TelnetStreamClass *stream;
+    void printPacket();
+    void decodePacket();
+    void registerTelnetCallbacks();
 };
 
 #endif

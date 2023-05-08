@@ -2,14 +2,15 @@
 
 SoftwareSerial deskSerial(DTX);
 
-void Jarvis::begin(TelnetStreamClass *streamPtr) {
+void Jarvis::begin(Telnet *telnetPtr) {
   deskSerial.begin(9600);
   pinMode(DTX, INPUT);
-  reset(0);
-  stream = streamPtr;
+  resetPacket(0);
+  telnet = telnetPtr;
+  registerTelnetCallbacks();
 };
 
-void Jarvis::reset(unsigned char data) {
+void Jarvis::resetPacket(unsigned char data) {
   cmd = 0;
   argc = 0;
   // fill the args with 0
@@ -23,14 +24,21 @@ void Jarvis::reset(unsigned char data) {
 void Jarvis::loop() {
   while (deskSerial.available()) {
     unsigned char data = deskSerial.read();
-    // TelnetStream->print(data, HEX);
 
     bool commandFinished = registerByte(data);
     if (commandFinished) {
-      // printCommand();
-      processCommand();
+      // printPacket();
+      decodePacket();
     }
   }
+}
+
+void Jarvis::moveDown() {
+  telnet->stream->println("Moving down!");
+}
+
+void Jarvis::moveUp() {
+  telnet->stream->println("Moving up!");
 }
 
 bool Jarvis::registerByte(unsigned char data) {
@@ -91,7 +99,7 @@ bool Jarvis::registerByte(unsigned char data) {
    }
 
   if (state < SYNC || state > ENDMSG || didError) {
-    reset(data);
+    resetPacket(data);
     return false;
   }
 
@@ -101,38 +109,37 @@ bool Jarvis::registerByte(unsigned char data) {
   return checksumMatched;
 }
 
-
-void Jarvis::printCommand() {
-  stream->print("Got Command: ");
-  stream->print(CTRLR_ADDR, HEX);
-  stream->print(" ");
-  stream->print(CTRLR_ADDR, HEX);
-  stream->print(" ");
-  stream->print(cmd, HEX);
-  stream->print(" ");
-  stream->print(argc, HEX);
-  stream->print(" ");
+void Jarvis::printPacket() {
+  telnet->stream->print("Got Command: ");
+  telnet->stream->print(CTRLR_ADDR, HEX);
+  telnet->stream->print(" ");
+  telnet->stream->print(CTRLR_ADDR, HEX);
+  telnet->stream->print(" ");
+  telnet->stream->print(cmd, HEX);
+  telnet->stream->print(" ");
+  telnet->stream->print(argc, HEX);
+  telnet->stream->print(" ");
 
   if (argc > 0) {
-    stream->print("{");
+    telnet->stream->print("{");
   }
   for (uint8_t i = 0; i < argc; i++) {
-    stream->print(argv[i], HEX);
+    telnet->stream->print(argv[i], HEX);
     if (i < argc - 1) {
-      stream->print(", ");
+      telnet->stream->print(", ");
     }
   }
   if (argc > 0) {
-    stream->print("} ");
+    telnet->stream->print("} ");
   }
 
-  stream->print(checksum, HEX);
-  stream->print(" ");
-  stream->println(0x7e, HEX);
-  stream->println();
+  telnet->stream->print(checksum, HEX);
+  telnet->stream->print(" ");
+  telnet->stream->println(0x7e, HEX);
+  telnet->stream->println();
 }
 
-void Jarvis::processCommand() {
+void Jarvis::decodePacket() {
   static uint16_t lastHeight = 0;
 
   switch(cmd) {
@@ -144,12 +151,18 @@ void Jarvis::processCommand() {
       if (height != lastHeight) {
         lastHeight = height;
 
-        stream->print("Desk height is ");
+        telnet->stream->print("Desk height is ");
         float adjusted = (float)height / 10;
-        stream->print(adjusted, 1);
+        telnet->stream->print(adjusted, 1);
         Serial.println(adjusted, 1);
-        stream->println(" inches");
+        telnet->stream->println(" inches");
       }
     }
   }
+}
+
+void Jarvis::registerTelnetCallbacks() {
+  telnet->registerCallback("help", "I am a good desk! I am happy to meet you!");
+  telnet->registerCallback("down", std::bind(&Jarvis::moveDown, this));
+  telnet->registerCallback("up", std::bind(&Jarvis::moveUp, this));
 }

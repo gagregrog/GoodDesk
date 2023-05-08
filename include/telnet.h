@@ -1,8 +1,7 @@
-#include <TelnetStream.h>
-#include <sntp.h>
-
 #ifndef TELNET_H
 #define TELNET_H
+
+#include <TelnetStream.h>
 
 typedef std::function<void()> callback;
 
