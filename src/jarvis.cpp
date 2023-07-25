@@ -5,6 +5,9 @@ SoftwareSerial deskSerial(DTX);
 void Jarvis::begin(Telnet *telnetPtr) {
   deskSerial.begin(9600);
   pinMode(DTX, INPUT);
+  resetPin(HS0);
+  resetPin(HS1);
+  resetPin(HS2);
   resetPacket(0);
   telnet = telnetPtr;
   registerTelnetCallbacks();
@@ -41,22 +44,63 @@ void Jarvis::processHandsetData() {
   }
 }
 
-void Jarvis::moveDown() {
+void Jarvis::moveDown(uint8_t num_seconds) {
   if (!button_timer.is_active()) {
-    telnet->stream->println("Holding down for 3 seconds!");
-    button_timer.begin(3000);
+    telnet->stream->print("Moving down for ");
+    telnet->stream->print(num_seconds);
+    telnet->stream->println(" seconds!");
+    setPin(HS0);
+    button_timer.begin(num_seconds * 1000);
   }
 }
 
-void Jarvis::moveUp() {
+void Jarvis::moveUp(uint8_t num_seconds) {
   if (!button_timer.is_active()) {
-    telnet->stream->println("Holding up for 3 seconds!");
-    button_timer.begin(3000);
+    telnet->stream->print("Moving up for ");
+    telnet->stream->print(num_seconds);
+    telnet->stream->println(" seconds!");
+    setPin(HS1);
+    button_timer.begin(num_seconds * 1000);
   }
+}
+
+void Jarvis::moveToPreset(uint8_t memory_number) {
+  if (button_timer.is_active()) {
+    return;
+  }
+
+  switch (memory_number)
+  {
+  case 1:
+    setPin(HS0);
+    setPin(HS1);
+    break;
+  case 2:
+    setPin(HS2);
+    break;
+  case 3:
+    setPin(HS0);
+    setPin(HS2);
+    break;
+  case 4:
+    setPin(HS1);
+    setPin(HS2);
+    break;
+  default:
+    return;
+  }
+
+  button_timer.begin(BUTTON_PRESS_MS);
+  telnet->stream->print("Moving to memory position ");
+  telnet->stream->print(memory_number);
+  telnet->stream->println("!");
 }
 
 void Jarvis::release() {
   telnet->stream->println("Buttons released!");
+  resetPin(HS0);
+  resetPin(HS1);
+  resetPin(HS2);
 }
 
 bool Jarvis::registerByte(unsigned char data) {
@@ -179,8 +223,33 @@ void Jarvis::decodePacket() {
   }
 }
 
+void Jarvis::setPin(uint8_t pin) {
+  pinMode(pin, OUTPUT);
+  digitalWrite(pin, LOW);
+}
+
+void Jarvis::resetPin(uint8_t pin) {
+  pinMode(pin, INPUT_PULLUP);
+}
+
+void Jarvis::help() {
+  telnet->stream->println("up {1,2,3,4}    -  Move the desk up for the given number of seconds");
+  telnet->stream->println("down {1,2,3,4}  -  Move the desk down for the given number of seconds");
+  telnet->stream->println("goto {1,2,3,4}  - Go to the memory preset specified");
+}
+
 void Jarvis::registerTelnetCallbacks() {
-  telnet->registerCallback("help", "down {number_ms}  -  Move the desk down for a given number of ms.\nup {number_ms}    -  Move the desk up for a given number of ms");
-  telnet->registerCallback("down", std::bind(&Jarvis::moveDown, this));
-  telnet->registerCallback("up", std::bind(&Jarvis::moveUp, this));
+  telnet->registerCallback("help", std::bind(&Jarvis::help, this));
+  telnet->registerCallback("down 1", std::bind(&Jarvis::moveDown, this, 1));
+  telnet->registerCallback("down 2", std::bind(&Jarvis::moveDown, this, 2));
+  telnet->registerCallback("down 3", std::bind(&Jarvis::moveDown, this, 3));
+  telnet->registerCallback("down 4", std::bind(&Jarvis::moveDown, this, 4));
+  telnet->registerCallback("up 1", std::bind(&Jarvis::moveUp, this, 1));
+  telnet->registerCallback("up 2", std::bind(&Jarvis::moveUp, this, 2));
+  telnet->registerCallback("up 3", std::bind(&Jarvis::moveUp, this, 3));
+  telnet->registerCallback("up 4", std::bind(&Jarvis::moveUp, this, 4));
+  telnet->registerCallback("goto 1", std::bind(&Jarvis::moveToPreset, this, 1));
+  telnet->registerCallback("goto 2", std::bind(&Jarvis::moveToPreset, this, 2));
+  telnet->registerCallback("goto 3", std::bind(&Jarvis::moveToPreset, this, 3));
+  telnet->registerCallback("goto 4", std::bind(&Jarvis::moveToPreset, this, 4));
 }

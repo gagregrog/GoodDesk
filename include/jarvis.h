@@ -12,6 +12,8 @@
  // controller address
 #define CTRLR_ADDR 0xF2
 
+#define BUTTON_PRESS_MS 1000
+
 /** Note: Most of these commands are sent only from the desk controller or from
           the handset.  They are collected here in one enum for simplicity.
 **/
@@ -58,8 +60,9 @@ class Jarvis {
   public:
     void begin(Telnet *telnetPtr);
     void loop();
-    void moveDown();
-    void moveUp();
+    void moveDown(uint8_t num_seconds);
+    void moveUp(uint8_t num_seconds);
+    void moveToPreset(uint8_t memory_number);
 
     timer button_timer; // track handset button timers
 
@@ -79,7 +82,10 @@ class Jarvis {
     void decodePacket();
     void processHandsetData();
     void registerTelnetCallbacks();
+    void help();
     void release();
+    void setPin(uint8_t pin);
+    void resetPin(uint8_t pin);
 };
 
 #endif
