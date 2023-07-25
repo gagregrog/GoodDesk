@@ -6,6 +6,7 @@
 
 #include "pinout.h"
 #include "telnet.h"
+#include "timer.h"
 
 #define EOM 0x7E
  // controller address
@@ -59,6 +60,9 @@ class Jarvis {
     void loop();
     void moveDown();
     void moveUp();
+
+    timer button_timer; // track handset button timers
+
   private:
     unsigned char cmd;
     unsigned char addr;
@@ -73,7 +77,9 @@ class Jarvis {
     bool registerByte(unsigned char data);
     void printPacket();
     void decodePacket();
+    void processHandsetData();
     void registerTelnetCallbacks();
+    void release();
 };
 
 #endif

@@ -22,11 +22,19 @@ void Jarvis::resetPacket(unsigned char data) {
 };
 
 void Jarvis::loop() {
+  processHandsetData();
+
+  if (button_timer.overdue()) {
+    release();
+  }
+}
+
+void Jarvis::processHandsetData() {
   while (deskSerial.available()) {
     unsigned char data = deskSerial.read();
 
-    bool commandFinished = registerByte(data);
-    if (commandFinished) {
+    bool commandReceived = registerByte(data);
+    if (commandReceived) {
       // printPacket();
       decodePacket();
     }
@@ -34,11 +42,21 @@ void Jarvis::loop() {
 }
 
 void Jarvis::moveDown() {
-  telnet->stream->println("Moving down!");
+  if (!button_timer.is_active()) {
+    telnet->stream->println("Holding down for 3 seconds!");
+    button_timer.begin(3000);
+  }
 }
 
 void Jarvis::moveUp() {
-  telnet->stream->println("Moving up!");
+  if (!button_timer.is_active()) {
+    telnet->stream->println("Holding up for 3 seconds!");
+    button_timer.begin(3000);
+  }
+}
+
+void Jarvis::release() {
+  telnet->stream->println("Buttons released!");
 }
 
 bool Jarvis::registerByte(unsigned char data) {
@@ -162,7 +180,7 @@ void Jarvis::decodePacket() {
 }
 
 void Jarvis::registerTelnetCallbacks() {
-  telnet->registerCallback("help", "I am a good desk! I am happy to meet you!");
+  telnet->registerCallback("help", "down {number_ms}  -  Move the desk down for a given number of ms.\nup {number_ms}    -  Move the desk up for a given number of ms");
   telnet->registerCallback("down", std::bind(&Jarvis::moveDown, this));
   telnet->registerCallback("up", std::bind(&Jarvis::moveUp, this));
 }
