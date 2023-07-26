@@ -14,6 +14,14 @@
 
 #define BUTTON_PRESS_MS 1000
 
+#define MAX_SITTING_HEIGHT              35
+#define AUTODESK_DEFAULT_SIT_MINUTES    30
+#define AUTODESK_DEFAULT_STAND_MINUTES  20
+#define AUTODESK_DEFAULT_SIT_MS         MIN_TO_MS(AUTODESK_DEFAULT_SIT_MINUTES)
+#define AUTODESK_DEFAULT_STAND_MS       MIN_TO_MS(AUTODESK_DEFAULT_STAND_MINUTES)
+#define SIT_PRESET   2
+#define STAND_PRESET 4
+
 /** Note: Most of these commands are sent only from the desk controller or from
           the handset.  They are collected here in one enum for simplicity.
 **/
@@ -59,14 +67,22 @@ enum state_t {
 class Jarvis {
   public:
     void begin(Telnet *telnetPtr);
-    void loop();
+    void loop(bool wasInterrupted);
     void moveDown(uint8_t num_seconds);
     void moveUp(uint8_t num_seconds);
     void moveToPreset(uint8_t memory_number);
+    void getCurrentHeight();
+    void checkTimer();
+    void handleInterrupt();
 
-    timer button_timer; // track handset button timers
 
   private:
+    float currentHeight = 0;
+    bool autodeskEnabled = false;
+    uint8_t last_preset = SIT_PRESET;
+
+    timer button_timer; // track handset button timers
+    timer autodesk_timer;
     unsigned char cmd;
     unsigned char addr;
     unsigned char argc;
@@ -86,6 +102,7 @@ class Jarvis {
     void release();
     void setPin(uint8_t pin);
     void resetPin(uint8_t pin);
+    bool isSitting();
 };
 
 #endif

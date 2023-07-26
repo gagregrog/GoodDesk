@@ -11,6 +11,7 @@ void Jarvis::begin(Telnet *telnetPtr) {
   resetPacket(0);
   telnet = telnetPtr;
   registerTelnetCallbacks();
+  handleInterrupt();
 };
 
 void Jarvis::resetPacket(unsigned char data) {
@@ -24,11 +25,41 @@ void Jarvis::resetPacket(unsigned char data) {
   state = static_cast<state_t>(SYNC + (data == CTRLR_ADDR));
 };
 
-void Jarvis::loop() {
+void Jarvis::handleInterrupt() {
+  autodeskEnabled = digitalRead(SWITCH);
+  if (autodeskEnabled) {
+    telnet->stream->println("autodesk is now enabled");
+    telnet->stream->print("Desk will raise automatically in ");
+    telnet->stream->print(isSitting() ? AUTODESK_DEFAULT_SIT_MINUTES : AUTODESK_DEFAULT_STAND_MINUTES);
+    telnet->stream->println(" minutes");
+    autodesk_timer.begin(isSitting() ? AUTODESK_DEFAULT_SIT_MS : AUTODESK_DEFAULT_STAND_MS);
+  } else {
+    telnet->stream->println("autodesk is now disabled");
+    autodesk_timer.clear();
+  }
+}
+
+void Jarvis::loop(bool wasInterrupted) {
+  if (wasInterrupted) {
+    handleInterrupt();
+  }
+
   processHandsetData();
 
   if (button_timer.overdue()) {
     release();
+  }
+
+  if (autodesk_timer.overdue()) {
+    if (isSitting()) {
+      telnet->stream->println("Get ready to stand!");
+      moveToPreset(STAND_PRESET);
+      autodesk_timer.begin(AUTODESK_DEFAULT_STAND_MS);
+    } else {
+      telnet->stream->println("Get ready to sit!");
+      moveToPreset(SIT_PRESET);
+      autodesk_timer.begin(AUTODESK_DEFAULT_SIT_MS);
+    }
   }
 }
 
@@ -90,6 +121,7 @@ void Jarvis::moveToPreset(uint8_t memory_number) {
     return;
   }
 
+  last_preset = memory_number;
   button_timer.begin(BUTTON_PRESS_MS);
   telnet->stream->print("Moving to memory position ");
   telnet->stream->print(memory_number);
@@ -212,14 +244,20 @@ void Jarvis::decodePacket() {
 
       if (height != lastHeight) {
         lastHeight = height;
-
-        telnet->stream->print("Desk height is ");
-        float adjusted = (float)height / 10;
-        telnet->stream->print(adjusted, 1);
-        Serial.println(adjusted, 1);
-        telnet->stream->println(" inches");
+        currentHeight = (float)height / 10;
+        getCurrentHeight();
       }
     }
+  }
+}
+
+void Jarvis::getCurrentHeight() {
+  if (!currentHeight) {
+    telnet->stream->println("Height is unknown");
+  } else {
+    telnet->stream->print("Desk height is ");
+    telnet->stream->print(currentHeight, 1);
+    telnet->stream->println(" inches");
   }
 }
 
@@ -232,14 +270,41 @@ void Jarvis::resetPin(uint8_t pin) {
   pinMode(pin, INPUT_PULLUP);
 }
 
+void Jarvis::checkTimer() {
+  if (!autodesk_timer.is_active()) {
+    telnet->stream->println("autodesk is disabled");
+  } else {
+    telnet->stream->print("autodesk is enabled and will move ");
+    telnet->stream->print(last_preset == SIT_PRESET ? "up in " : "down in ");
+    unsigned long remaining_ms = autodesk_timer.remaining();
+    unsigned long remaining_seconds = remaining_ms / 1000;
+    unsigned long remaining_minutes = remaining_seconds / 60;
+    remaining_seconds %= 60;
+    remaining_minutes %= 60;
+    telnet->stream->print(remaining_minutes);
+    telnet->stream->print(" minutes and ");
+    telnet->stream->print(remaining_seconds);
+    telnet->stream->println(" seconds");
+  }
+}
+
 void Jarvis::help() {
+  telnet->stream->println("height          -  Get the current height in inches");
+  telnet->stream->println("time            -  Get the time remaining until the next autodesk move");
   telnet->stream->println("up {1,2,3,4}    -  Move the desk up for the given number of seconds");
   telnet->stream->println("down {1,2,3,4}  -  Move the desk down for the given number of seconds");
-  telnet->stream->println("goto {1,2,3,4}  - Go to the memory preset specified");
+  telnet->stream->println("goto {1,2,3,4}  -  Go to the memory preset specified");
+}
+
+bool Jarvis::isSitting() {
+  // return currentHeight && currentHeight <= MAX_SITTING_HEIGHT;
+  return last_preset == SIT_PRESET;
 }
 
 void Jarvis::registerTelnetCallbacks() {
   telnet->registerCallback("help", std::bind(&Jarvis::help, this));
+  telnet->registerCallback("height", std::bind(&Jarvis::getCurrentHeight, this));
+  telnet->registerCallback("time", std::bind(&Jarvis::checkTimer, this));
   telnet->registerCallback("down 1", std::bind(&Jarvis::moveDown, this, 1));
   telnet->registerCallback("down 2", std::bind(&Jarvis::moveDown, this, 2));
   telnet->registerCallback("down 3", std::bind(&Jarvis::moveDown, this, 3));

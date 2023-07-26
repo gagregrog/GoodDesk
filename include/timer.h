@@ -4,26 +4,46 @@
 #include <Arduino.h>
 
 struct timer {
-  unsigned long dueAt = 0;
+  unsigned long target_interval_ms = 0;
+  unsigned long start_ms = 0;
   
   void begin(unsigned long duration_ms = 1000) {
-    unsigned long now = millis();
-    dueAt = now + duration_ms;   
+    target_interval_ms = duration_ms;   
+    start_ms = millis();
+  }
+
+  bool is_active() {
+    return target_interval_ms;
+  }
+
+  void clear() {
+    target_interval_ms = 0;
   }
 
   bool overdue() {
-    unsigned long now = millis();
-    if (dueAt && now >= dueAt) {
-      dueAt = 0;
+    // subtraction ensures rollover safety
+    // https://arduino.stackexchange.com/a/33577
+    if (target_interval_ms && (millis() - start_ms >= target_interval_ms)) {
+      clear();
       return true;
     }
 
     return false;
   }
 
-  bool is_active() {
-    return dueAt;
+  unsigned long remaining() {
+    if (!is_active()) {
+      return 0;
+    }
+
+    unsigned long elapsed_ms = millis() - start_ms;
+    unsigned long remaining_ms = target_interval_ms - elapsed_ms;
+
+    return remaining_ms;
   }
 };
+
+#define MIN_TO_MS(min) min * 60 * 1000
+
 
 #endif
