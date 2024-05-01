@@ -26,6 +26,8 @@ void Jarvis::resetPacket(unsigned char data) {
 };
 
 void Jarvis::handleInterrupt() {
+  // delay as a cheap software debounce
+  delay(250);
   autodeskEnabled = digitalRead(SWITCH);
   if (autodeskEnabled) {
     telnet->stream->println("autodesk is now enabled");
